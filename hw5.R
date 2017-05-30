@@ -7,10 +7,11 @@ rename <- function(file){  #擷取路徑中的檔案名稱 (去掉.csv)
   return (file2[length(file2)])
 }
 
-install.packages("cvTools")
+#install.packages("cvTools")
 library(cvTools)
 library(stats) 
 library('ROCR')
+library(randomForest)
 #library(pROC)
 #------------------read parameters---------------
 args = commandArgs(trailingOnly=TRUE)
@@ -46,36 +47,38 @@ if (length(args)==0) {
 
   f <- d[,3:5602]
   pca <- prcomp(x=f,center = TRUE, scale. = TRUE) 
-  pca_top6 <- prcomp$x[,]
+  pca_top6 <- pca$x[,1:6]
+  temp <- data.frame(ID=d[,1],target=d[,2],stringsAsFactors = FALSE)
+  inte <- cbind(temp,pca_top6)
     
-  k <- 10 #the number of folds
+  k <- nfold #the number of folds
   
-  folds <- cvFolds(NROW(dataset), K=k)
-  dataset$holdoutpred <- rep(0,nrow(dataset))
+  folds <- cvFolds(nrow(inte), K=k)
+  d$holdoutpred <- rep(0,nrow(inte))
   
   for(i in 1:k){
-    train <- dataset[folds$subsets[folds$which != i && folds$which != i+1], ] #Set the training set
-    validation <- dataset[folds$subsets[folds$which == i], ] #Set the validation set
-    test <- dataset[folds$subsets[folds$which == (i+1) %% k ], ] #Set the test set
+    train <- inte[folds$subsets[folds$which != i && folds$which != i+1], ] #Set the training set
+    validation <- inte[folds$subsets[folds$which == i], ] #Set the validation set
+    test <- inte[folds$subsets[folds$which == (i+1) %% k ], ] #Set the test set
     
     
-    newlm <- lm(y~x,data=train) #Get your new linear model (just fit on the train data)
-    newpred <- predict(newlm,newdata=validation) #Get the predicitons for the validation set (from the model just fit on the train data)
     
-    dataset[folds$subsets[folds$which == i], ]$holdoutpred <- newpred #Put the hold out prediction in the data set for later use
+    ob <- randomForest(target ~ PC1+PC2+PC3+PC4+PC5+PC6, data=train)
+    pred_valid <- predict(ob,newdata=validation) #Get the predicitons for the validation set 
+    pred_train <- predict(ob,newdata=train) #Get the predicitons for the train set 
+    pred_test <- predict(ob,newdata=test) #Get the predicitons for the test set
+    
+    d[folds$subsets[folds$which == i], ]$holdoutpred <- newpred #Put the hold out prediction in the data set for later use
   }
-   
-  
-  #--------用來判斷是否顯著(Nimaer test)和修改檔名-------------
   
   
   #------------------write data frame -----------
-  out_data<-data.frame(set, accuracy, stringsAsFactors = F)
+  #out_data<-data.frame(set, accuracy, stringsAsFactors = F)
   
   #----------------- output file ----------------
 
-  out_f <- paste0(out_f,".csv")
-  write.table(out_data, file=out_f, row.names = F, quote = F,sep=",")
+  #out_f <- paste0(out_f,".csv")
+  #write.table(out_data, file=out_f, row.names = F, quote = F,sep=",")
 
 }
 
