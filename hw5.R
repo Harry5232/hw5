@@ -7,6 +7,9 @@ rename <- function(file){  #擷取路徑中的檔案名稱 (去掉.csv)
   return (file2[length(file2)])
 }
 
+install.packages("cvTools")
+library(cvTools)
+library(stats) 
 library('ROCR')
 #library(pROC)
 #------------------read parameters---------------
@@ -38,12 +41,29 @@ if (length(args)==0) {
   
   #--------read files------------
   d <- read.csv("Archaeal_tfpssm.csv",header=F)
-  levels(d[,2])
-  head(d[,5600:5603]) 
+  #levels(d[,2])
+  #head(d[,5600:5602]) 
 
-
+  f <- d[,3:5602]
+  pca <- prcomp(x=f,center = TRUE, scale. = TRUE) 
+  pca_top6 <- prcomp$x[,]
     
-  #--------calculate sensitivity specificity F1 AUC------------
+  k <- 10 #the number of folds
+  
+  folds <- cvFolds(NROW(dataset), K=k)
+  dataset$holdoutpred <- rep(0,nrow(dataset))
+  
+  for(i in 1:k){
+    train <- dataset[folds$subsets[folds$which != i && folds$which != i+1], ] #Set the training set
+    validation <- dataset[folds$subsets[folds$which == i], ] #Set the validation set
+    test <- dataset[folds$subsets[folds$which == (i+1) %% k ], ] #Set the test set
+    
+    
+    newlm <- lm(y~x,data=train) #Get your new linear model (just fit on the train data)
+    newpred <- predict(newlm,newdata=validation) #Get the predicitons for the validation set (from the model just fit on the train data)
+    
+    dataset[folds$subsets[folds$which == i], ]$holdoutpred <- newpred #Put the hold out prediction in the data set for later use
+  }
    
   
   #--------用來判斷是否顯著(Nimaer test)和修改檔名-------------
